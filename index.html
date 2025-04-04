@@ -1,0 +1,237 @@
+  <!DOCTYPE html>
+  <html lang="pt-br">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Interativo</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto p-6">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold mb-2">Dashboard</h1>
+        <div class="flex space-x-4">
+          <select id="filterSelect" class="border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+            <option value="">Todos</option>
+            <option value="vendas">Vendas</option>
+            <option value="marketing">Marketing</option>
+            <option value="suporte">Suporte</option>
+          </select>
+
+          <select id="periodSelect" class="border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+            <option value="day">Diário</option>
+            <option value="week">Semanal</option>
+            <option value="month">Mensal</option>
+            <option value="year">Anual</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Stats Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6" id="statsContainer">
+        <!-- Cards serão gerados dinamicamente -->
+      </div>
+
+      <!-- Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h2 class="text-lg font-semibold mb-4">Desempenho ao Longo do Tempo</h2>
+          <div class="h-64">
+            <canvas id="lineChart1"></canvas>
+          </div>
+        </div>
+        <div class="bg-white p-4 rounded-lg shadow">
+          <h2 class="text-lg font-semibold mb-4">Métricas por Categoria</h2>
+          <div class="h-64">
+            <canvas id="lineChart2"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white p-4 rounded-lg shadow overflow-x-auto mb-6">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nome</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Categoria</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="bg-white divide-y divide-gray-200">
+            <!-- Rows will be added dynamically -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      // Mock data - seria substituído por chamadas de API reais
+      const mockData = {
+        stats: [
+          { title: 'Usuários Totais', value: '12,361', icon: 'U', color: 'bg-blue-100 text-blue-600' },
+          { title: 'Acessos', value: '54,281', icon: 'A', color: 'bg-green-100 text-green-600' },
+          { title: 'Taxa de Conversão', value: '24%', icon: 'T', color: 'bg-purple-100 text-purple-600' },
+          { title: 'Receita', value: 'R$ 54,214', icon: 'R', color: 'bg-yellow-100 text-yellow-600' }
+        ],
+        chartData: [
+          { name: 'Jan', value: 400 },
+          { name: 'Fev', value: 300 },
+          { name: 'Mar', value: 600 },
+          { name: 'Abr', value: 800 },
+          { name: 'Mai', value: 500 },
+          { name: 'Jun', value: 900 }
+        ],
+        tableData: [
+          { id: 1, name: 'Produto A', category: 'vendas', value: 'R$ 1,200', status: 'Ativo' },
+          { id: 2, name: 'Campanha B', category: 'marketing', value: 'R$ 3,400', status: 'Pausado' },
+          { id: 3, name: 'Ticket C', category: 'suporte', value: 'N/A', status: 'Fechado' },
+          { id: 4, name: 'Produto D', category: 'vendas', value: 'R$ 850', status: 'Ativo' },
+          { id: 5, name: 'Campanha E', category: 'marketing', value: 'R$ 1,700', status: 'Ativo' }
+        ]
+      };
+
+      // State
+      let currentFilter = '';
+
+      // DOM elements
+      const statsContainer = document.getElementById('statsContainer');
+      const filterSelect = document.getElementById('filterSelect');
+      const periodSelect = document.getElementById('periodSelect');
+      const tableBody = document.getElementById('tableBody');
+
+      // Event listeners
+      filterSelect.addEventListener('change', handleFilterChange);
+      periodSelect.addEventListener('change', handlePeriodChange);
+
+      // Initialize components
+      renderStatCards();
+      renderCharts();
+      renderTable();
+
+      // API mock - simulação de chamada à API
+      async function fetchData(filter = '') {
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            if (!filter) {
+              resolve(mockData.tableData);
+            } else {
+              resolve(mockData.tableData.filter(item => item.category === filter));
+            }
+          }, 300);
+        });
+      }
+
+      // Event handlers
+      async function handleFilterChange(e) {
+        currentFilter = e.target.value;
+        const data = await fetchData(currentFilter);
+        renderTable(data);
+        updateCharts();
+      }
+
+      function handlePeriodChange(e) {
+        // Aqui você chamaria a API para atualizar os dados baseados no período
+        updateCharts();
+      }
+
+      // Render functions
+      function renderStatCards() {
+        statsContainer.innerHTML = '';
+        mockData.stats.forEach(stat => {
+          const cardElement = document.createElement('div');
+          cardElement.className = 'bg-white rounded-lg shadow p-4 flex items-center';
+          cardElement.innerHTML = `
+            <div class="p-3 rounded-full ${stat.color} mr-4">
+              ${stat.icon}
+            </div>
+            <div>
+              <h3 class="text-gray-500 text-sm">${stat.title}</h3>
+              <p class="text-2xl font-semibold">${stat.value}</p>
+            </div>
+          `;
+          statsContainer.appendChild(cardElement);
+        });
+      }
+
+      function renderCharts() {
+        const ctx1 = document.getElementById('lineChart1').getContext('2d');
+        const ctx2 = document.getElementById('lineChart2').getContext('2d');
+
+        // Extrair dados para o gráfico
+        const labels = mockData.chartData.map(item => item.name);
+        const values = mockData.chartData.map(item => item.value);
+
+        // Primeiro gráfico
+        new Chart(ctx1, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Desempenho',
+              data: values,
+              borderColor: '#3B82F6',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              tension: 0.1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+
+        // Segundo gráfico
+        new Chart(ctx2, {
+          type: 'bar',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'Métricas',
+              data: values,
+              backgroundColor: 'rgba(59, 130, 246, 0.7)'
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false
+          }
+        });
+      }
+
+      async function renderTable(data = null) {
+        tableBody.innerHTML = '';
+        const tableData = data || await fetchData(currentFilter);
+
+        tableData.forEach(row => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">${row.id}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${row.name}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${row.category}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${row.value}</td>
+            <td class="px-6 py-4 whitespace-nowrap">${row.status}</td>
+          `;
+          tableBody.appendChild(tr);
+        });
+      }
+
+      function updateCharts() {
+        // Em uma implementação real, você atualizaria os gráficos com novos dados
+        console.log('Atualizando gráficos...');
+      }
+
+      // Simulação de dados em tempo real
+      setInterval(() => {
+        // Atualizar um valor aleatório para simular dados em tempo real
+        const randomStat = Math.floor(Math.random() * mockData.stats.length);
+        const randomValue = Math.floor(Math.random() * 10000);
+        mockData.stats[randomStat].value = randomValue.toLocaleString();
+        renderStatCards();
+      }, 10000);
+    </script>
+  </body>
+  </html>
