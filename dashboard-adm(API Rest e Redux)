@@ -1,0 +1,751 @@
+// src/index.js
+import React from 'react';
+import ReactDOM from 'react-dom';
+import { Provider } from 'react-redux';
+import { store } from './store';
+import App from './App';
+import './index.css';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <Provider store={store}>
+      <App />
+    </Provider>
+  </React.StrictMode>,
+  document.getElementById('root')
+);
+
+// src/App.js
+import React from 'react';
+import AdminDashboard from './components/AdminDashboard';
+
+function App() {
+  return (
+    <div className="App">
+      <AdminDashboard />
+    </div>
+  );
+}
+
+export default App;
+
+// src/api/axiosConfig.js
+import axios from 'axios';
+
+// Cria uma instância do axios com configurações base
+const api = axios.create({
+  baseURL: 'https://api.seuservidor.com', // Substitua pela URL base da sua API
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json',
+  }
+});
+
+// Interceptor para adicionar token de autenticação em cada requisição
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para tratamento de erros nas respostas
+api.interceptors.response.use(
+  (response) => {
+    return response;
+  },
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Redirecionar para login se token estiver expirado
+      localStorage.removeItem('token');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+export default api;
+
+// src/store/index.js
+import { configureStore } from '@reduxjs/toolkit';
+import usersReducer from './slices/usersSlice';
+import productsReducer from './slices/productsSlice';
+import ordersReducer from './slices/ordersSlice';
+import authReducer from './slices/authSlice';
+import statsReducer from './slices/statsSlice';
+
+export const store = configureStore({
+  reducer: {
+    users: usersReducer,
+    products: productsReducer,
+    orders: ordersReducer,
+    auth: authReducer,
+    stats: statsReducer,
+  },
+});
+
+// src/store/slices/usersSlice.js
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../api/axiosConfig';
+
+export const fetchUsers = createAsyncThunk(
+  'users/fetchUsers',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/users');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const addUser = createAsyncThunk(
+  'users/addUser',
+  async (userData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/users', userData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const updateUser = createAsyncThunk(
+  'users/updateUser',
+  async ({ id, userData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/users/${id}`, userData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const deleteUser = createAsyncThunk(
+  'users/deleteUser',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/users/${id}`);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const usersSlice = createSlice({
+  name: 'users',
+  initialState: {
+    users: [],
+    status: 'idle', // 'idle' | 'loading' | 'succeeded' | 'failed'
+    error: null,
+  },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchUsers.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchUsers.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.users = action.payload;
+      })
+      .addCase(fetchUsers.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(addUser.fulfilled, (state, action) => {
+        state.users.push(action.payload);
+      })
+      .addCase(updateUser.fulfilled, (state, action) => {
+        const index = state.users.findIndex(user => user.id === action.payload.id);
+        if (index !== -1) {
+          state.users[index] = action.payload;
+        }
+      })
+      .addCase(deleteUser.fulfilled, (state, action) => {
+        state.users = state.users.filter(user => user.id !== action.payload);
+      });
+  },
+});
+
+export default usersSlice.reducer;
+
+// src/store/slices/productsSlice.js
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../api/axiosConfig';
+
+export const fetchProducts = createAsyncThunk(
+  'products/fetchProducts',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/products');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const addProduct = createAsyncThunk(
+  'products/addProduct',
+  async (productData, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/products', productData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const updateProduct = createAsyncThunk(
+  'products/updateProduct',
+  async ({ id, productData }, { rejectWithValue }) => {
+    try {
+      const response = await api.put(`/products/${id}`, productData);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const deleteProduct = createAsyncThunk(
+  'products/deleteProduct',
+  async (id, { rejectWithValue }) => {
+    try {
+      await api.delete(`/products/${id}`);
+      return id;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const productsSlice = createSlice({
+  name: 'products',
+  initialState: {
+    products: [],
+    status: 'idle',
+    error: null,
+  },
+  reducers: {},
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchProducts.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchProducts.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.products = action.payload;
+      })
+      .addCase(fetchProducts.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(addProduct.fulfilled, (state, action) => {
+        state.products.push(action.payload);
+      })
+      .addCase(updateProduct.fulfilled, (state, action) => {
+        const index = state.products.findIndex(product => product.id === action.payload.id);
+        if (index !== -1) {
+          state.products[index] = action.payload;
+        }
+      })
+      .addCase(deleteProduct.fulfilled, (state, action) => {
+        state.products = state.products.filter(product => product.id !== action.payload);
+      });
+  },
+});
+
+export default productsSlice.reducer;
+
+// src/store/slices/ordersSlice.js
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../api/axiosConfig';
+
+export const fetchOrders = createAsyncThunk(
+  'orders/fetchOrders',
+  async (params = {}, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/orders', { params });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const updateOrderStatus = createAsyncThunk(
+  'orders/updateOrderStatus',
+  async ({ id, status }, { rejectWithValue }) => {
+    try {
+      const response = await api.patch(`/orders/${id}`, { status });
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const ordersSlice = createSlice({
+  name: 'orders',
+  initialState: {
+    orders: [],
+    totalCount: 0,
+    currentPage: 1,
+    totalPages: 1,
+    status: 'idle',
+    error: null,
+  },
+  reducers: {
+    setCurrentPage: (state, action) => {
+      state.currentPage = action.payload;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchOrders.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchOrders.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.orders = action.payload.data;
+        state.totalCount = action.payload.totalCount;
+        state.totalPages = action.payload.totalPages;
+      })
+      .addCase(fetchOrders.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(updateOrderStatus.fulfilled, (state, action) => {
+        const index = state.orders.findIndex(order => order.id === action.payload.id);
+        if (index !== -1) {
+          state.orders[index] = action.payload;
+        }
+      });
+  },
+});
+
+export const { setCurrentPage } = ordersSlice.actions;
+export default ordersSlice.reducer;
+
+// src/store/slices/statsSlice.js
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../api/axiosConfig';
+
+export const fetchStats = createAsyncThunk(
+  'stats/fetchStats',
+  async (timeframe = 'month', { rejectWithValue }) => {
+    try {
+      const response = await api.get(`/stats?timeframe=${timeframe}`);
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const statsSlice = createSlice({
+  name: 'stats',
+  initialState: {
+    overview: {
+      totalUsers: 0,
+      totalProducts: 0,
+      totalOrders: 0,
+      totalRevenue: 0,
+    },
+    salesData: [],
+    categoryData: [],
+    timeframe: 'month',
+    status: 'idle',
+    error: null,
+  },
+  reducers: {
+    setTimeframe: (state, action) => {
+      state.timeframe = action.payload;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchStats.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(fetchStats.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.overview = action.payload.overview;
+        state.salesData = action.payload.salesData;
+        state.categoryData = action.payload.categoryData;
+      })
+      .addCase(fetchStats.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      });
+  },
+});
+
+export const { setTimeframe } = statsSlice.actions;
+export default statsSlice.reducer;
+
+// src/store/slices/authSlice.js
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import api from '../../api/axiosConfig';
+
+export const login = createAsyncThunk(
+  'auth/login',
+  async ({ email, password }, { rejectWithValue }) => {
+    try {
+      const response = await api.post('/auth/login', { email, password });
+      localStorage.setItem('token', response.data.token);
+      return response.data.user;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const logout = createAsyncThunk(
+  'auth/logout',
+  async (_, { rejectWithValue }) => {
+    try {
+      await api.post('/auth/logout');
+      localStorage.removeItem('token');
+      return null;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+export const getCurrentUser = createAsyncThunk(
+  'auth/getCurrentUser',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/auth/me');
+      return response.data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState: {
+    user: null,
+    token: localStorage.getItem('token'),
+    isAuthenticated: !!localStorage.getItem('token'),
+    status: 'idle',
+    error: null,
+  },
+  reducers: {
+    clearError: (state) => {
+      state.error = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(login.pending, (state) => {
+        state.status = 'loading';
+      })
+      .addCase(login.fulfilled, (state, action) => {
+        state.status = 'succeeded';
+        state.user = action.payload;
+        state.isAuthenticated = true;
+        state.error = null;
+      })
+      .addCase(login.rejected, (state, action) => {
+        state.status = 'failed';
+        state.error = action.payload;
+      })
+      .addCase(logout.fulfilled, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+      })
+      .addCase(getCurrentUser.fulfilled, (state, action) => {
+        state.user = action.payload;
+        state.isAuthenticated = true;
+      })
+      .addCase(getCurrentUser.rejected, (state) => {
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+      });
+  },
+});
+
+export const { clearError } = authSlice.actions;
+export default authSlice.reducer;
+
+// src/components/AdminDashboard.js
+import React, { useEffect, useState } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { fetchUsers } from '../store/slices/usersSlice';
+import { fetchProducts } from '../store/slices/productsSlice';
+import { fetchOrders, setCurrentPage } from '../store/slices/ordersSlice';
+import { fetchStats, setTimeframe } from '../store/slices/statsSlice';
+import { getCurrentUser } from '../store/slices/authSlice';
+import UsersTab from './tabs/UsersTab';
+import ProductsTab from './tabs/ProductsTab';
+import OrdersTab from './tabs/OrdersTab';
+import LoadingSpinner from './common/LoadingSpinner';
+import ErrorMessage from './common/ErrorMessage';
+
+const AdminDashboard = () => {
+  const dispatch = useDispatch();
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Selectors
+  const auth = useSelector((state) => state.auth);
+  const users = useSelector((state) => state.users);
+  const products = useSelector((state) => state.products);
+  const orders = useSelector((state) => state.orders);
+  const stats = useSelector((state) => state.stats);
+  
+  // Effects
+  useEffect(() => {
+    // Verifica autenticação e carrega dados do usuário atual
+    if (auth.isAuthenticated && !auth.user) {
+      dispatch(getCurrentUser());
+    }
+  }, [auth.isAuthenticated, auth.user, dispatch]);
+
+  useEffect(() => {
+    // Carrega os dados iniciais quando o componente é montado
+    if (auth.isAuthenticated) {
+      dispatch(fetchStats());
+      
+      if (activeTab === 'overview') {
+        dispatch(fetchOrders({ limit: 5 })); // Apenas os 5 mais recentes para a visão geral
+      } else if (activeTab === 'users') {
+        dispatch(fetchUsers());
+      } else if (activeTab === 'products') {
+        dispatch(fetchProducts());
+      } else if (activeTab === 'orders') {
+        dispatch(fetchOrders({ page: orders.currentPage }));
+      }
+    }
+  }, [activeTab, auth.isAuthenticated, dispatch, orders.currentPage]);
+
+  // Handlers
+  const handleTimeframeChange = (newTimeframe) => {
+    dispatch(setTimeframe(newTimeframe));
+    dispatch(fetchStats(newTimeframe));
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+  };
+
+  // Verifica carregamento inicial
+  const isLoading = 
+    auth.status === 'loading' || 
+    (activeTab === 'overview' && stats.status === 'loading') ||
+    (activeTab === 'users' && users.status === 'loading') ||
+    (activeTab === 'products' && products.status === 'loading') ||
+    (activeTab === 'orders' && orders.status === 'loading');
+
+  // Verifica erros
+  const error = 
+    auth.error || 
+    (activeTab === 'overview' && stats.error) ||
+    (activeTab === 'users' && users.error) ||
+    (activeTab === 'products' && products.error) ||
+    (activeTab === 'orders' && orders.error);
+
+  if (!auth.isAuthenticated) {
+    // Redirecionar para a página de login
+    window.location.href = '/login';
+    return null;
+  }
+
+  if (isLoading) {
+    return <LoadingSpinner />;
+  }
+
+  if (error) {
+    return <ErrorMessage message={error.message || 'Ocorreu um erro ao carregar os dados.'} />;
+  }
+
+  return (
+    <div className="bg-gray-100 min-h-screen">
+      {/* Header */}
+      <header className="bg-blue-600 text-white p-4 shadow-md">
+        <div className="container mx-auto flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Painel Administrativo</h1>
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <button className="bg-blue-700 p-2 rounded-full">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                </svg>
+              </button>
+              <span className="absolute -top-1 -right-1 bg-red-500 text-xs rounded-full w-5 h-5 flex items-center justify-center">3</span>
+            </div>
+            <div className="flex items-center">
+              <img src="/api/placeholder/40/40" alt="Avatar" className="rounded-full mr-2" />
+              <span>{auth.user?.name || 'Admin'}</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="container mx-auto py-6 px-4">
+        {/* Tabs */}
+        <div className="flex space-x-4 mb-6 border-b">
+          <button 
+            onClick={() => handleTabChange('overview')} 
+            className={`pb-2 px-4 ${activeTab === 'overview' ? 'border-b-2 border-blue-500 text-blue-600 font-medium' : 'text-gray-500'}`}
+          >
+            Visão Geral
+          </button>
+          <button 
+            onClick={() => handleTabChange('users')} 
+            className={`pb-2 px-4 ${activeTab === 'users' ? 'border-b-2 border-blue-500 text-blue-600 font-medium' : 'text-gray-500'}`}
+          >
+            Usuários
+          </button>
+          <button 
+            onClick={() => handleTabChange('products')} 
+            className={`pb-2 px-4 ${activeTab === 'products' ? 'border-b-2 border-blue-500 text-blue-600 font-medium' : 'text-gray-500'}`}
+          >
+            Produtos
+          </button>
+          <button 
+            onClick={() => handleTabChange('orders')} 
+            className={`pb-2 px-4 ${activeTab === 'orders' ? 'border-b-2 border-blue-500 text-blue-600 font-medium' : 'text-gray-500'}`}
+          >
+            Pedidos
+          </button>
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-500">Total de Usuários</p>
+                    <p className="text-2xl font-bold">{stats.overview.totalUsers}</p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-green-600 text-sm mt-4">↑ 12% desde o último mês</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-500">Total de Produtos</p>
+                    <p className="text-2xl font-bold">{stats.overview.totalProducts}</p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-green-600 text-sm mt-4">↑ 5% desde o último mês</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-500">Total de Pedidos</p>
+                    <p className="text-2xl font-bold">{stats.overview.totalOrders}</p>
+                  </div>
+                  <div className="bg-yellow-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-green-600 text-sm mt-4">↑ 18% desde o último mês</p>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-gray-500">Receita Total</p>
+                    <p className="text-2xl font-bold">R$ {stats.overview.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                  </div>
+                  <div className="bg-green-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                  </div>
+                </div>
+                <p className="text-green-600 text-sm mt-4">↑ 8% desde o último mês</p>
+              </div>
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-lg font-medium">Vendas Mensais</h2>
+                  <div className="flex space-x-2">
+                    <button 
+                      onClick={() => handleTimeframeChange('week')} 
+                      className={`px-3 py-1 text-sm rounded-md ${stats.timeframe === 'week' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100'}`}
+                    >
+                      Semanal
+                    </button>
+                    <button 
+                      onClick={() => handleTimeframeChange('month')} 
+                      className={`px-3 py-1 text-sm rounded-md ${stats.timeframe === 'month' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100'}`}
+                    >
+                      Mensal
+                    </button>
+                    <button 
+                      onClick={() => handleTimeframeChange('year')} 
+                      className={`px-3 py-1 text-sm rounded-md ${stats.timeframe === 'year' ? 'bg-blue-100 text-blue-600' : 'bg-gray-100'}`}
+                    >
+                      Anual
+                    </button>
+                  </div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={stats.salesData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Line type="monotone" dataKey="value" stroke="#3B82F6" activeDot={{ r: 8 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-lg shadow-md">
+                <h2 className="text-lg font-medium mb-4">Vendas por Categoria</h2>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats.categoryData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="name" />
+                      <YAxis />
+                      <Tooltip />
+                      <Legend />
+                      <Bar dataKey="value" fill="#8B5CF6"
